@@ -1,28 +1,12 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/inngest/client";
-import {
-  gatherContext,
-  orchestrateMultiAgent,
-  analystAgent,
-  summarizerAgent,
-  factCheckerAgent,
-  classifierAgent,
-  synthesizerAgent,
-} from "@/inngest/functions";
+import { gatherContextSimple } from "@/inngest/functions";
 
 // Create the Inngest serve handler
+// Simple example only - focused on observability and debugging
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
-    // Context gathering (used by orchestrator)
-    gatherContext,
-    // Multi-agent orchestration
-    orchestrateMultiAgent,
-    analystAgent,
-    summarizerAgent,
-    factCheckerAgent,
-    classifierAgent,
-    synthesizerAgent,
+    gatherContextSimple, // Simple, observable research agent
   ],
 });
-

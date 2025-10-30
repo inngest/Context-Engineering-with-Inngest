@@ -12,9 +12,11 @@ export const researchChannel = channel((sessionId: string) => `research-session-
     .addTopic(
       topic("progress").type<{
         step: string;
-        status: "starting" | "in_progress" | "completed" | "failed";
+        status: "starting" | "in_progress" | "running" | "completed" | "failed" | "retrying";
         message: string;
-        timestamp: string;
+        attempt?: number;
+        data?: any;
+        timestamp?: string;
         metadata?: Record<string, string | number | boolean>;
       }>()
     )
@@ -47,11 +49,14 @@ export const researchChannel = channel((sessionId: string) => `research-session-
     // Final result
     .addTopic(
       topic("result").type<{
+        status?: string;
         answer: string;
-        model: string;
+        model?: string;
         tokensUsed?: number;
         contextsUsed: number;
-        timestamp: string;
+        attempts?: number;
+        quality?: string;
+        timestamp?: string;
       }>()
     )
     // Execution metadata (rate limiting, concurrency, etc.)

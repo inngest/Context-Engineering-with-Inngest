@@ -5,57 +5,16 @@ import { getResearchSubscriptionToken } from "@/app/actions";
 import { useState, useEffect, useRef } from "react";
 import { AgentCard } from "./AgentCard";
 import type { AgentType } from "@/lib/ai-models";
+import type {
+  FinalResult,
+  MetadataUpdate,
+  ProgressUpdate,
+  SourceResult,
+} from "@/inngest/channels";
 
 interface RealtimeResearchStatusProps {
   sessionId: string;
   query: string;
-}
-
-interface ProgressUpdate {
-  step: string;
-  status: "starting" | "in_progress" | "completed" | "failed";
-  message: string;
-  timestamp: string;
-  metadata?: Record<string, string | number | boolean>;
-}
-
-interface SourceResult {
-  source: string;
-  success: boolean;
-  count?: number;
-  error?: string;
-  timestamp: string;
-}
-
-interface MetadataUpdate {
-  type: "rate_limit" | "concurrency" | "throttle" | "retry" | "info";
-  message: string;
-  details?: Record<string, string | number | boolean>;
-  timestamp: string;
-}
-
-interface FinalResult {
-  answer: string;
-  model: string;
-  tokensUsed?: number;
-  contextsUsed: number;
-  timestamp: string;
-}
-
-interface AgentUpdate {
-  agent: AgentType;
-  status: "starting" | "running" | "completed" | "failed" | "retrying";
-  message: string;
-  timestamp: string;
-  duration?: number;
-  retryCount?: number;
-}
-
-interface AgentResult {
-  agent: AgentType;
-  response: string;
-  model: string;
-  timestamp: string;
 }
 
 export function RealtimeResearchStatus({
@@ -161,11 +120,11 @@ export function RealtimeResearchStatus({
         }
 
         case "result":
-          setFinalResult(update.data as FinalResult);
+          setFinalResult(update.data);
           break;
 
         case "metadata":
-          setMetadata((prev) => [...prev, update.data as MetadataUpdate]);
+          setMetadata((prev) => [...prev, update.data]);
           break;
 
         case "error": {
@@ -179,7 +138,7 @@ export function RealtimeResearchStatus({
         }
 
         case "agent-update": {
-          const agentData = update.data as AgentUpdate;
+          const agentData = update.data;
           setAgentStates((prev) => ({
             ...prev,
             [agentData.agent]: {
@@ -210,7 +169,7 @@ export function RealtimeResearchStatus({
         }
 
         case "agent-result": {
-          const resultData = update.data as AgentResult;
+          const resultData = update.data;
           setAgentStates((prev) => ({
             ...prev,
             [resultData.agent]: {

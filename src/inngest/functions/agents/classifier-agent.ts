@@ -2,6 +2,7 @@ import { inngest } from "../../client";
 import { researchChannel } from "../../channels";
 import { models, modelInfo } from "@/lib/ai-models";
 import { streamText } from "ai";
+import { publishTokenByTokenUpdates } from "@/lib/utils";
 
 export const classifierAgent = inngest.createFunction(
   {
@@ -17,7 +18,7 @@ export const classifierAgent = inngest.createFunction(
   { event: "agent/classify" },
   async ({ event, step, publish }) => {
     const { query, contexts, sessionId, userId } = event.data;
-    const startTime = Date.now();
+    const startTime = +new Date(event.ts!);
 
     await step.run("publish-classifier-start", async () => {
       await publish(
@@ -63,28 +64,16 @@ ${contextText}
 Provide your classification and categorization:`,
       });
 
-      let fullResponse = "";
-
-      for await (const chunk of textStream) {
-        fullResponse += chunk;
-
-        publish(
-          researchChannel(sessionId)["agent-chunk"]({
-            agent: "classifier",
-            chunk,
-            isComplete: false,
-            timestamp: new Date().toISOString(),
-          })
-        ).catch((err) => console.error("Error publishing chunk:", err));
-      }
-
-      await publish(
-        researchChannel(sessionId)["agent-chunk"]({
-          agent: "classifier",
-          chunk: "",
-          isComplete: true,
-          timestamp: new Date().toISOString(),
-        })
+      let fullResponse = await publishTokenByTokenUpdates(
+        textStream,
+        async (message) => {
+          return publish(
+            researchChannel(sessionId)["agent-chunk"]({
+              agent: "classifier",
+              ...message,
+            })
+          );
+        }
       );
 
       return fullResponse;
@@ -121,4 +110,3 @@ Provide your classification and categorization:`,
     };
   }
 );
-

@@ -2,6 +2,7 @@ import { inngest } from "../../client";
 import { researchChannel } from "../../channels";
 import { models, modelInfo } from "@/lib/ai-models";
 import { streamText } from "ai";
+import { publishTokenByTokenUpdates } from "@/lib/utils";
 
 export const analystAgent = inngest.createFunction(
   {
@@ -17,7 +18,7 @@ export const analystAgent = inngest.createFunction(
   { event: "agent/analyze" },
   async ({ event, step, publish }) => {
     const { query, contexts, sessionId, userId } = event.data;
-    const startTime = Date.now();
+    const startTime = +new Date(event.ts!);
 
     // Publish agent starting
     await step.run("publish-analyst-start", async () => {
@@ -65,31 +66,16 @@ ${contextText}
 Provide your detailed analysis:`,
       });
 
-      let fullResponse = "";
-
-      // Stream chunks to frontend
-      for await (const chunk of textStream) {
-        fullResponse += chunk;
-
-        // Publish chunk
-        publish(
-          researchChannel(sessionId)["agent-chunk"]({
-            agent: "analyst",
-            chunk,
-            isComplete: false,
-            timestamp: new Date().toISOString(),
-          })
-        ).catch((err) => console.error("Error publishing chunk:", err));
-      }
-
-      // Signal completion
-      await publish(
-        researchChannel(sessionId)["agent-chunk"]({
-          agent: "analyst",
-          chunk: "",
-          isComplete: true,
-          timestamp: new Date().toISOString(),
-        })
+      let fullResponse = await publishTokenByTokenUpdates(
+        textStream,
+        async (message) => {
+          return publish(
+            researchChannel(sessionId)["agent-chunk"]({
+              agent: "analyst",
+              ...message,
+            })
+          );
+        }
       );
 
       return fullResponse;
@@ -127,4 +113,3 @@ Provide your detailed analysis:`,
     };
   }
 );
-

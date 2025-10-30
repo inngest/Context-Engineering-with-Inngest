@@ -2,6 +2,7 @@ import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { mistral } from "@ai-sdk/mistral";
+import { gateway } from "@ai-sdk/gateway";
 
 /**
  * AI Model configurations for different agents
@@ -9,23 +10,19 @@ import { mistral } from "@ai-sdk/mistral";
  */
 export const models = {
   // GPT-4: Deep analysis and detailed responses
-  analyst: openai("gpt-4-turbo-preview", {
-    structuredOutputs: false,
-  }),
+  analyst: gateway("openai/gpt-4-turbo"),
 
   // Claude: Summarization and concise explanations
-  summarizer: anthropic("claude-3-5-sonnet-20241022"),
+  summarizer: gateway("anthropic/claude-3.5-sonnet"),
 
   // Gemini: Fact-checking and validation
-  factChecker: google("gemini-1.5-pro"),
+  factChecker: gateway("google/gemini-2.5-flash"),
 
   // Mistral: Topic classification and categorization
-  classifier: mistral("mistral-large-latest"),
+  classifier: gateway("mistral/mistral-large"),
 
   // GPT-4: Final synthesis combining all agent outputs
-  synthesizer: openai("gpt-4-turbo-preview", {
-    structuredOutputs: false,
-  }),
+  synthesizer: gateway("openai/gpt-4-turbo"),
 };
 
 /**
@@ -70,4 +67,3 @@ export const modelInfo = {
 } as const;
 
 export type AgentType = keyof typeof models;
-

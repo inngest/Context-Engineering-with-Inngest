@@ -2,65 +2,34 @@
 
 import { useInngestSubscription } from "@inngest/realtime/hooks";
 import { getResearchSubscriptionToken } from "@/app/actions";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AgentCard } from "./AgentCard";
 import type { AgentType } from "@/lib/ai-models";
+import type {
+  FinalResult,
+  MetadataUpdate,
+  ProgressUpdate,
+  SourceResult,
+} from "@/inngest/channels";
 
 interface RealtimeResearchStatusProps {
   sessionId: string;
   query: string;
 }
 
-interface ProgressUpdate {
-  step: string;
-  status: "starting" | "in_progress" | "completed" | "failed";
-  message: string;
-  timestamp: string;
-  metadata?: Record<string, string | number | boolean>;
-}
-
-interface SourceResult {
-  source: string;
-  success: boolean;
-  count?: number;
-  error?: string;
-  timestamp: string;
-}
-
-interface MetadataUpdate {
-  type: "rate_limit" | "concurrency" | "throttle" | "retry" | "info";
-  message: string;
-  details?: Record<string, string | number | boolean>;
-  timestamp: string;
-}
-
-interface FinalResult {
-  answer: string;
-  model: string;
-  tokensUsed?: number;
-  contextsUsed: number;
-  timestamp: string;
-}
-
-interface AgentUpdate {
-  agent: AgentType;
-  status: "starting" | "running" | "completed" | "failed" | "retrying";
-  message: string;
-  timestamp: string;
-  duration?: number;
-  retryCount?: number;
-}
-
-interface AgentResult {
-  agent: AgentType;
-  response: string;
-  model: string;
-  timestamp: string;
-}
-
-export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchStatusProps) {
+export function RealtimeResearchStatus({
+  sessionId,
+  query,
+}: RealtimeResearchStatusProps) {
   const { freshData, error, state } = useInngestSubscription({
     refreshToken: () => getResearchSubscriptionToken(sessionId),
+  });
+  const sourcesSectionRef = useRef<HTMLDivElement>(null);
+  const agentsSectionRef = useRef<HTMLDivElement>(null);
+  const scrollStatuses = useRef({
+    sources: false,
+    agents: false,
+    synthesis: false,
   });
 
   const [progressSteps, setProgressSteps] = useState<ProgressUpdate[]>([]);
@@ -72,20 +41,33 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Agent state
-  const [agentStates, setAgentStates] = useState<Record<AgentType, {
-    status: "idle" | "starting" | "running" | "completed" | "failed" | "retrying";
-    message?: string;
-    duration?: number;
-    response?: string;
-    retryCount?: number;
-  }>>({
+  const [agentStates, setAgentStates] = useState<
+    Record<
+      AgentType,
+      {
+        status:
+          | "idle"
+          | "starting"
+          | "running"
+          | "completed"
+          | "failed"
+          | "retrying";
+        message?: string;
+        duration?: number;
+        response?: string;
+        retryCount?: number;
+      }
+    >
+  >({
     analyst: { status: "idle" },
     summarizer: { status: "idle" },
     factChecker: { status: "idle" },
     classifier: { status: "idle" },
     synthesizer: { status: "idle" },
   });
-  const [agentResponses, setAgentResponses] = useState<Record<AgentType, string>>({
+  const [agentResponses, setAgentResponses] = useState<
+    Record<AgentType, string>
+  >({
     analyst: "",
     summarizer: "",
     factChecker: "",
@@ -124,7 +106,11 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
           break;
 
         case "ai-chunk": {
-          const chunkData = update.data as { chunk: string; isComplete: boolean; timestamp: string };
+          const chunkData = update.data as {
+            chunk: string;
+            isComplete: boolean;
+            timestamp: string;
+          };
           if (chunkData.isComplete) {
             setIsAiComplete(true);
           } else {
@@ -134,21 +120,25 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
         }
 
         case "result":
-          setFinalResult(update.data as FinalResult);
+          setFinalResult(update.data);
           break;
 
         case "metadata":
-          setMetadata((prev) => [...prev, update.data as MetadataUpdate]);
+          setMetadata((prev) => [...prev, update.data]);
           break;
 
         case "error": {
-          const errorData = update.data as { error: string; recoverable: boolean; timestamp: string };
+          const errorData = update.data as {
+            error: string;
+            recoverable: boolean;
+            timestamp: string;
+          };
           setErrorMessage(errorData.error);
           break;
         }
 
         case "agent-update": {
-          const agentData = update.data as AgentUpdate;
+          const agentData = update.data;
           setAgentStates((prev) => ({
             ...prev,
             [agentData.agent]: {
@@ -163,7 +153,12 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
         }
 
         case "agent-chunk": {
-          const chunkData = update.data as { agent: AgentType; chunk: string; isComplete: boolean; timestamp: string };
+          const chunkData = update.data as {
+            agent: AgentType;
+            chunk: string;
+            isComplete: boolean;
+            timestamp: string;
+          };
           if (!chunkData.isComplete) {
             setAgentResponses((prev) => ({
               ...prev,
@@ -174,7 +169,7 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
         }
 
         case "agent-result": {
-          const resultData = update.data as AgentResult;
+          const resultData = update.data;
           setAgentStates((prev) => ({
             ...prev,
             [resultData.agent]: {
@@ -187,6 +182,39 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
       }
     });
   }, [freshData]);
+
+  // auto scrolls
+  useEffect(() => {
+    if (isAiComplete) {
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [isAiComplete]);
+
+  useEffect(() => {
+    if (
+      Object.values(agentStates).some((a) => a.status !== "idle") &&
+      !scrollStatuses.current.agents
+    ) {
+      window.scrollTo({
+        top: agentsSectionRef.current?.offsetTop ?? 0,
+        behavior: "smooth",
+      });
+      scrollStatuses.current.agents = true;
+    }
+  }, [agentStates, scrollStatuses]);
+
+  useEffect(() => {
+    if (sourceResults.length > 0 && !scrollStatuses.current.sources) {
+      window.scrollTo({
+        top: sourcesSectionRef.current?.offsetTop ?? 0,
+        behavior: "smooth",
+      });
+      scrollStatuses.current.sources = true;
+    }
+  }, [sourceResults, scrollStatuses]);
 
   const getStepIcon = (status: string) => {
     switch (status) {
@@ -233,7 +261,7 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
       <div className="flex items-center gap-2">
         <div
           className={`w-2 h-2 rounded-full ${
-            String(state) === "connected"
+            String(state) === "active"
               ? "bg-green-400 animate-pulse"
               : String(state) === "connecting"
               ? "bg-yellow-400 animate-pulse"
@@ -241,17 +269,23 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
           }`}
         />
         <span className="text-sm text-slate-400">
-          {String(state) === "connected" && "Live updates active"}
+          {String(state) === "active" && "Live updates active"}
           {String(state) === "connecting" && "Connecting to Inngest..."}
-          {String(state) !== "connected" && String(state) !== "connecting" && "Disconnected"}
+          {String(state) !== "active" &&
+            String(state) !== "connecting" &&
+            "Disconnected"}
         </span>
       </div>
 
       {/* Query Info */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-slate-300 mb-2">Research Query</h3>
+        <h3 className="text-sm font-semibold text-slate-300 mb-2">
+          Research Query
+        </h3>
         <p className="text-white">{query}</p>
-        <p className="text-xs text-slate-500 mt-2">Session: {sessionId.substring(0, 8)}...</p>
+        <p className="text-xs text-slate-500 mt-2">
+          Session: {sessionId.substring(0, 8)}...
+        </p>
       </div>
 
       {/* Progress Steps */}
@@ -289,7 +323,10 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
 
       {/* Source Results */}
       {sourceResults.length > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div
+          className="bg-slate-800 border border-slate-700 rounded-lg p-4"
+          ref={sourcesSectionRef}
+        >
           <h3 className="text-sm font-semibold text-slate-300 mb-3">
             Data Sources ({sourceResults.length}/4)
           </h3>
@@ -334,7 +371,10 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
         agentStates.summarizer.status !== "idle" ||
         agentStates.factChecker.status !== "idle" ||
         agentStates.classifier.status !== "idle") && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div
+          className="bg-slate-800 border border-slate-700 rounded-lg p-4"
+          ref={agentsSectionRef}
+        >
           <h3 className="text-sm font-semibold text-slate-300 mb-3">
             Multi-Agent Analysis (Parallel Execution)
           </h3>
@@ -352,7 +392,9 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
               status={agentStates.summarizer.status}
               message={agentStates.summarizer.message}
               duration={agentStates.summarizer.duration}
-              response={agentResponses.summarizer || agentStates.summarizer.response}
+              response={
+                agentResponses.summarizer || agentStates.summarizer.response
+              }
               retryCount={agentStates.summarizer.retryCount}
             />
             <AgentCard
@@ -360,7 +402,9 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
               status={agentStates.factChecker.status}
               message={agentStates.factChecker.message}
               duration={agentStates.factChecker.duration}
-              response={agentResponses.factChecker || agentStates.factChecker.response}
+              response={
+                agentResponses.factChecker || agentStates.factChecker.response
+              }
               retryCount={agentStates.factChecker.retryCount}
             />
             <AgentCard
@@ -368,11 +412,13 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
               status={agentStates.classifier.status}
               message={agentStates.classifier.message}
               duration={agentStates.classifier.duration}
-              response={agentResponses.classifier || agentStates.classifier.response}
+              response={
+                agentResponses.classifier || agentStates.classifier.response
+              }
               retryCount={agentStates.classifier.retryCount}
             />
           </div>
-          
+
           {/* Synthesizer (Separate, runs after others) */}
           {agentStates.synthesizer.status !== "idle" && (
             <div>
@@ -384,7 +430,9 @@ export function RealtimeResearchStatus({ sessionId, query }: RealtimeResearchSta
                 status={agentStates.synthesizer.status}
                 message={agentStates.synthesizer.message}
                 duration={agentStates.synthesizer.duration}
-                response={agentResponses.synthesizer || agentStates.synthesizer.response}
+                response={
+                  agentResponses.synthesizer || agentStates.synthesizer.response
+                }
                 retryCount={agentStates.synthesizer.retryCount}
               />
             </div>

@@ -24,7 +24,7 @@ export const gatherContext = inngest.createFunction(
       await publish(
         researchChannel(sessionId).progress({
           step: "initialization",
-          status: "starting",
+          status: "completed",
           message: `Starting research query: "${query}"`,
           timestamp: new Date().toISOString(),
           metadata: { userId },
@@ -50,36 +50,40 @@ export const gatherContext = inngest.createFunction(
         researchChannel(sessionId).progress({
           step: "fetch-sources",
           status: "in_progress",
-          message: "Fetching context from ArXiv, GitHub, VectorDB, and Web Search in parallel",
+          message:
+            "Fetching context from ArXiv, GitHub, VectorDB, and Web Search in parallel",
           timestamp: new Date().toISOString(),
         })
       );
     });
 
-    const { contexts, results } = await step.run("fetch-all-sources", async () => {
-      console.log(`Fetching contexts for query: "${query}"`);
+    const { contexts, results } = await step.run(
+      "fetch-all-sources",
+      async () => {
+        console.log(`Fetching contexts for query: "${query}"`);
 
-      const results = await Promise.allSettled([
-        fetchArxiv(query),
-        fetchGithub(query),
-        fetchVectorDB(query),
-        fetchWebSearch(query),
-      ]);
+        const results = await Promise.allSettled([
+          fetchArxiv(query),
+          fetchGithub(query),
+          fetchVectorDB(query),
+          fetchWebSearch(query),
+        ]);
 
-      const allContexts: ContextItem[] = [];
+        const allContexts: ContextItem[] = [];
 
-      results.forEach((result, index) => {
-        const sources = ["ArXiv", "GitHub", "VectorDB", "WebSearch"];
-        if (result.status === "fulfilled") {
-          console.log(`✓ ${sources[index]}: ${result.value.length} results`);
-          allContexts.push(...result.value);
-        } else {
-          console.error(`✗ ${sources[index]} failed:`, result.reason);
-        }
-      });
+        results.forEach((result, index) => {
+          const sources = ["ArXiv", "GitHub", "VectorDB", "WebSearch"];
+          if (result.status === "fulfilled") {
+            console.log(`✓ ${sources[index]}: ${result.value.length} results`);
+            allContexts.push(...result.value);
+          } else {
+            console.error(`✗ ${sources[index]} failed:`, result.reason);
+          }
+        });
 
-      return { contexts: allContexts, results };
-    });
+        return { contexts: allContexts, results };
+      }
+    );
 
     // Publish source results (one by one for better UX)
     const sources = ["ArXiv", "GitHub", "VectorDB", "WebSearch"];
@@ -90,8 +94,10 @@ export const gatherContext = inngest.createFunction(
           researchChannel(sessionId)["source-result"]({
             source: sources[i],
             success: result.status === "fulfilled",
-            count: result.status === "fulfilled" ? result.value.length : undefined,
-            error: result.status === "rejected" ? String(result.reason) : undefined,
+            count:
+              result.status === "fulfilled" ? result.value.length : undefined,
+            error:
+              result.status === "rejected" ? String(result.reason) : undefined,
             timestamp: new Date().toISOString(),
           })
         );
@@ -125,7 +131,8 @@ export const gatherContext = inngest.createFunction(
       return {
         sessionId,
         response: {
-          answer: "No context found for the given query. Please try a different search term.",
+          answer:
+            "No context found for the given query. Please try a different search term.",
           model: "none",
           tokensUsed: 0,
         },
@@ -221,4 +228,3 @@ export const gatherContext = inngest.createFunction(
     };
   }
 );
-

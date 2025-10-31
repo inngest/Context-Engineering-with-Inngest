@@ -1,5 +1,5 @@
 import { inngest } from "../client";
-import { researchChannel } from "../channels";
+import { AgentResult, researchChannel } from "../channels";
 import { gatherContext } from "./gather-context";
 import { analystAgent } from "./agents/analyst-agent";
 import { summarizerAgent } from "./agents/summarizer-agent";
@@ -44,7 +44,8 @@ export const orchestrateMultiAgent = inngest.createFunction(
       await step.run("publish-no-context-result", async () => {
         await publish(
           researchChannel(sessionId).result({
-            answer: "No context found for the given query. Please try a different search term.",
+            answer:
+              "No context found for the given query. Please try a different search term.",
             model: "none",
             tokensUsed: 0,
             contextsUsed: 0,
@@ -63,7 +64,12 @@ export const orchestrateMultiAgent = inngest.createFunction(
           type: "info",
           message: "Fanning out to 4 specialized AI agents in parallel",
           details: {
-            agents: ["GPT-4 Analyst", "Claude Summarizer", "Gemini Fact-Checker", "Mistral Classifier"],
+            agents: [
+              "GPT-4 Analyst",
+              "Claude Summarizer",
+              "Gemini Fact-Checker",
+              "Mistral Classifier",
+            ],
             parallelExecution: true,
           },
           timestamp: new Date().toISOString(),
@@ -72,12 +78,12 @@ export const orchestrateMultiAgent = inngest.createFunction(
     });
 
     // Invoke all 4 agents in parallel
-    const agentResults = await Promise.all([
+    const agentResults = (await Promise.all([
       step.invoke("analyst-agent", {
         function: analystAgent,
         data: {
           query,
-          contexts: topContexts,
+          contexts: topContexts as any,
           sessionId,
           userId,
         },
@@ -86,7 +92,7 @@ export const orchestrateMultiAgent = inngest.createFunction(
         function: summarizerAgent,
         data: {
           query,
-          contexts: topContexts,
+          contexts: topContexts as any,
           sessionId,
           userId,
         },
@@ -95,7 +101,7 @@ export const orchestrateMultiAgent = inngest.createFunction(
         function: factCheckerAgent,
         data: {
           query,
-          contexts: topContexts,
+          contexts: topContexts as any,
           sessionId,
           userId,
         },
@@ -104,12 +110,12 @@ export const orchestrateMultiAgent = inngest.createFunction(
         function: classifierAgent,
         data: {
           query,
-          contexts: topContexts,
+          contexts: topContexts as any,
           sessionId,
           userId,
         },
       }),
-    ]);
+    ])) as Awaited<AgentResult[]>;
 
     // Step 3: FAN-IN - Synthesize all agent responses
     await step.run("publish-fan-in", async () => {
@@ -130,7 +136,7 @@ export const orchestrateMultiAgent = inngest.createFunction(
       function: synthesizerAgent,
       data: {
         query,
-        agentResults,
+        agentResults: agentResults as AgentResult[],
         sessionId,
         userId,
       },
@@ -182,4 +188,3 @@ export const orchestrateMultiAgent = inngest.createFunction(
     };
   }
 );
-

@@ -2,6 +2,7 @@ import { inngest } from "../../client";
 import { researchChannel } from "../../channels";
 import { models, modelInfo } from "@/lib/ai-models";
 import { streamText } from "ai";
+import { publishTokenByTokenUpdates } from "@/lib/utils";
 
 export const factCheckerAgent = inngest.createFunction(
   {
@@ -17,7 +18,7 @@ export const factCheckerAgent = inngest.createFunction(
   { event: "agent/fact-check" },
   async ({ event, step, publish }) => {
     const { query, contexts, sessionId, userId } = event.data;
-    const startTime = Date.now();
+    const startTime = +new Date(event.ts!);
 
     await step.run("publish-fact-checker-start", async () => {
       await publish(
@@ -63,28 +64,16 @@ ${contextText}
 Provide your fact-checking analysis:`,
       });
 
-      let fullResponse = "";
-
-      for await (const chunk of textStream) {
-        fullResponse += chunk;
-
-        publish(
-          researchChannel(sessionId)["agent-chunk"]({
-            agent: "factChecker",
-            chunk,
-            isComplete: false,
-            timestamp: new Date().toISOString(),
-          })
-        ).catch((err) => console.error("Error publishing chunk:", err));
-      }
-
-      await publish(
-        researchChannel(sessionId)["agent-chunk"]({
-          agent: "factChecker",
-          chunk: "",
-          isComplete: true,
-          timestamp: new Date().toISOString(),
-        })
+      let fullResponse = await publishTokenByTokenUpdates(
+        textStream,
+        async (message) => {
+          return publish(
+            researchChannel(sessionId)["agent-chunk"]({
+              agent: "factChecker",
+              ...message,
+            })
+          );
+        }
       );
 
       return fullResponse;
@@ -121,4 +110,3 @@ Provide your fact-checking analysis:`,
     };
   }
 );
-

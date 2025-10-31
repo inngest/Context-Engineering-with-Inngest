@@ -3,13 +3,6 @@ import { researchChannel } from "../../channels";
 import { models, modelInfo } from "@/lib/ai-models";
 import { streamText } from "ai";
 
-interface AgentResponse {
-  agent: string;
-  response: string;
-  model: string;
-  duration: number;
-}
-
 export const synthesizerAgent = inngest.createFunction(
   {
     id: "synthesizer-agent",
@@ -24,7 +17,7 @@ export const synthesizerAgent = inngest.createFunction(
   { event: "agent/synthesize" },
   async ({ event, step, publish }) => {
     const { query, agentResults, sessionId, userId } = event.data;
-    const startTime = Date.now();
+    const startTime = +new Date(event.ts!);
 
     await step.run("publish-synthesizer-start", async () => {
       await publish(
@@ -49,8 +42,9 @@ export const synthesizerAgent = inngest.createFunction(
 
       // Format agent responses for synthesis
       const agentInputs = agentResults
-        .map((result: AgentResponse) => {
-          const agentName = result.agent.charAt(0).toUpperCase() + result.agent.slice(1);
+        .map((result) => {
+          const agentName =
+            result.agent.charAt(0).toUpperCase() + result.agent.slice(1);
           return `--- ${agentName} Agent (${result.model}) ---\n${result.response}`;
         })
         .join("\n\n");
@@ -142,4 +136,3 @@ Your synthesized response:`,
     };
   }
 );
-
